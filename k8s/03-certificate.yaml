@@ -1,0 +1,22 @@
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-issuer
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wisecow-tls
+  namespace: wisecow
+spec:
+  secretName: wisecow-tls-secret
+  duration: 2160h    # 90d
+  renewBefore: 360h  # 15d
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - wisecow.local

@@ -1,0 +1,121 @@
+# Zero-trust KubeArmor policy set for the wisecow Deployment.
+#
+# Philosophy: default-deny process execution. wisecow only ever needs to run
+# the binaries in its own script (fortune, cowsay, nc/ncat, bash). Anything
+# else - package managers, interactive shells, network/recon tools used to
+# probe or exfiltrate - is explicitly blocked and shows up as a policy
+# violation in KubeArmor's logs.
+#
+# Apply with:
+#   kubectl apply -f kubearmor/wisecow-policy.yaml
+#
+# Verify it loaded:
+#   kubectl get kubearmorpolicy -n wisecow
+#
+# Trigger a violation (to screenshot):
+#   kubectl exec -it -n wisecow <wisecow-pod> -- apt-get update
+#   kubectl exec -it -n wisecow <wisecow-pod> -- /bin/sh
+#   (both should be blocked / "Permission denied" or "OCI runtime exec failed")
+#
+# Watch violations live:
+#   kubectl logs -n kubearmor -l kubearmor-app=kubearmor-relay -f
+#   # or with the karmor CLI:
+#   karmor logs -n wisecow
+
+---
+# Policy 1: allow-list the exact binaries wisecow.sh needs to run.
+# Once any Allow-type process rule exists for a pod, KubeArmor's default
+# posture (set at the cluster/namespace's kubearmorconfig, "block") denies
+# every process NOT in this list - this is what makes it zero-trust.
+apiVersion: security.kubearmor.com/v1
+kind: KubeArmorPolicy
+metadata:
+  name: wisecow-allow-required-binaries
+  namespace: wisecow
+spec:
+  selector:
+    matchLabels:
+      app: wisecow
+  process:
+    matchPaths:
+      - path: /app/wisecow.sh
+      - path: /usr/bin/bash
+      - path: /usr/games/cowsay
+      - path: /usr/games/fortune
+      - path: /usr/bin/fortune
+      - path: /bin/nc
+      - path: /usr/bin/nc
+      - path: /usr/bin/ncat
+    action: Allow
+  action: Allow
+
+---
+# Policy 2: explicitly block high-risk binaries for clear, auditable
+# violation logs (package managers, downloaders, remote shells, scanners).
+apiVersion: security.kubearmor.com/v1
+kind: KubeArmorPolicy
+metadata:
+  name: wisecow-block-highrisk-binaries
+  namespace: wisecow
+spec:
+  selector:
+    matchLabels:
+      app: wisecow
+  process:
+    matchPaths:
+      - path: /usr/bin/apt
+      - path: /usr/bin/apt-get
+      - path: /usr/bin/dpkg
+      - path: /usr/bin/wget
+      - path: /usr/bin/curl
+      - path: /usr/bin/ssh
+      - path: /usr/bin/scp
+      - path: /usr/bin/nmap
+      - path: /bin/sh
+      - path: /bin/dash
+    action: Block
+  action: Audit
+
+---
+# Policy 3: filesystem - read-only access to config/app dirs, block reads
+# of sensitive host credential files.
+apiVersion: security.kubearmor.com/v1
+kind: KubeArmorPolicy
+metadata:
+  name: wisecow-file-restrictions
+  namespace: wisecow
+spec:
+  selector:
+    matchLabels:
+      app: wisecow
+  file:
+    matchDirectories:
+      - dir: /etc/
+        recursive: true
+        readOnly: true
+      - dir: /app/
+        recursive: true
+        readOnly: true
+    matchPaths:
+      - path: /etc/shadow
+      - path: /etc/passwd
+  action: Block
+
+---
+# Policy 4: drop dangerous capabilities (privilege escalation / raw socket
+# based exfiltration or scanning).
+apiVersion: security.kubearmor.com/v1
+kind: KubeArmorPolicy
+metadata:
+  name: wisecow-block-capabilities
+  namespace: wisecow
+spec:
+  selector:
+    matchLabels:
+      app: wisecow
+  capabilities:
+    matchCapabilities:
+      - capability: sys_admin
+      - capability: net_raw
+      - capability: sys_ptrace
+  action: Block
