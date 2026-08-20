@@ -1,16 +1,4 @@
 #!/bin/bash
-#
-# health_monitor.sh
-# Monitors CPU, memory, disk usage and process count.
-# Logs an ALERT line to the console and to a log file when any metric
-# crosses its threshold.
-#
-# Usage:
-#   ./health_monitor.sh                # single check
-#   ./health_monitor.sh --watch 60     # loop every 60s (Ctrl+C to stop)
-#
-# Suggested cron for periodic checks (every 5 min):
-#   */5 * * * * /path/to/health_monitor.sh >> /var/log/health_monitor_cron.log 2>&1
 
 set -euo pipefail
 
