@@ -26,8 +26,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.IMAGE }}:${{ github.sha }}
-            ${{ env.IMAGE }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/wisecow:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/wisecow:latest
 
   deploy:
     needs: build
